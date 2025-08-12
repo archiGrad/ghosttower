@@ -48,16 +48,20 @@
     </div>
 
     <script type="module">
-        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js';
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.121.1/build/three.module.js';
         import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.121.1/examples/jsm/loaders/GLTFLoader.js";
         import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.121.1/examples/jsm/controls/OrbitControls.js";
+        
+        const CONFIG = {
+            backgroundColor: '#000000'
+        };
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setClearColor(0x202020);
+        renderer.setClearColor(CONFIG.backgroundColor);
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.getElementById('container').appendChild(renderer.domElement);
@@ -76,14 +80,12 @@
 
         const loader = new GLTFLoader();
         
-        // Load GLB file - change 'model.glb' to your actual filename
         loader.load(
             'model.glb',
             function (gltf) {
                 const model = gltf.scene;
                 scene.add(model);
                 
-                // Auto-fit camera to model
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 const size = box.getSize(new THREE.Vector3());
