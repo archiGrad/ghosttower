@@ -28,12 +28,15 @@
             z-index: 100;
         }
         
-        #controls {
+        #info {
             position: absolute;
             top: 10px;
-            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
             color: white;
-            font-size: 12px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
             z-index: 100;
         }
     </style>
@@ -41,10 +44,10 @@
 <body>
     <div id="container"></div>
     <div id="loading">Loading 3D model...</div>
-    <div id="controls">
-        <div>Mouse: Rotate</div>
-        <div>Wheel: Zoom</div>
-        <div>Right click + drag: Pan</div>
+    <div id="info">
+        <div><strong>Student:</strong> <span id="studentName">-</span></div>
+        <div><strong>Model:</strong> <span id="modelName">-</span></div>
+        <div><strong>Uploaded:</strong> <span id="uploadDate">-</span></div>
     </div>
 
     <script type="module">
@@ -80,35 +83,61 @@
 
         const loader = new GLTFLoader();
         
-        loader.load(
-            'model.glb',
-            function (gltf) {
-                const model = gltf.scene;
-                scene.add(model);
-                
-                const box = new THREE.Box3().setFromObject(model);
-                const center = box.getCenter(new THREE.Vector3());
-                const size = box.getSize(new THREE.Vector3());
-                
-                const maxDim = Math.max(size.x, size.y, size.z);
-                const fov = camera.fov * (Math.PI / 180);
-                let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-                cameraZ *= 1.5;
-                
-                camera.position.set(center.x, center.y, center.z + cameraZ);
-                camera.lookAt(center);
-                controls.target.copy(center);
-                
-                document.getElementById('loading').style.display = 'none';
-            },
-            function (progress) {
-                console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
-            },
-            function (error) {
-                console.error('Error loading GLB:', error);
-                document.getElementById('loading').textContent = 'Error loading model';
-            }
-        );
+        // Load models metadata
+        fetch('models.json')
+            .then(response => response.json())
+            .then(models => {
+                if (models.length > 0) {
+                    const model = models[0]; // Load first model for now
+                    
+                    // Update info overlay
+                    document.getElementById('studentName').textContent = model.name;
+                    document.getElementById('modelName').textContent = model.modelName;
+                    document.getElementById('uploadDate').textContent = new Date(model.uploadDate).toLocaleDateString();
+                    
+                    // Load the GLB file
+                    loadModel(model.modelPath);
+                } else {
+                    document.getElementById('loading').textContent = 'No models found';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading models.json:', error);
+                // Fallback to default model
+                loadModel('model.glb');
+            });
+        
+        function loadModel(modelPath) {
+            loader.load(
+                modelPath,
+                function (gltf) {
+                    const model = gltf.scene;
+                    scene.add(model);
+                    
+                    const box = new THREE.Box3().setFromObject(model);
+                    const center = box.getCenter(new THREE.Vector3());
+                    const size = box.getSize(new THREE.Vector3());
+                    
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const fov = camera.fov * (Math.PI / 180);
+                    let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+                    cameraZ *= 1.5;
+                    
+                    camera.position.set(center.x, center.y, center.z + cameraZ);
+                    camera.lookAt(center);
+                    controls.target.copy(center);
+                    
+                    document.getElementById('loading').style.display = 'none';
+                },
+                function (progress) {
+                    console.log('Loading progress:', (progress.loaded / progress.total * 100) + '%');
+                },
+                function (error) {
+                    console.error('Error loading GLB:', error);
+                    document.getElementById('loading').textContent = 'Error loading model';
+                }
+            );
+        }
 
         function animate() {
             requestAnimationFrame(animate);
