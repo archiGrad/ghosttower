@@ -39,6 +39,74 @@
             font-size: 14px;
             z-index: 100;
         }
+        
+        .label {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 5px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 200;
+            transform: translate(-50%, -100%);
+        }
+        
+        #timeline {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 150px;
+            background: rgba(0,0,0,0.9);
+            overflow-x: auto;
+            overflow-y: hidden;
+            z-index: 100;
+        }
+        
+        #timeline-content {
+            display: flex;
+            height: 100%;
+            padding: 10px;
+            gap: 20px;
+        }
+        
+        .student-section {
+            min-width: 200px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            padding: 10px;
+        }
+        
+        .student-name {
+            color: white;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .model-item {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 5px;
+            margin: 2px 0;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            text-align: center;
+        }
+        
+        .model-item:hover {
+            background: rgba(255,255,255,0.4);
+        }
+        
+        .model-item.current {
+            background: rgba(0,255,0,0.3);
+        }
+        
+        .model-item.active {
+            background: rgba(255,255,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -47,7 +115,12 @@
     <div id="info">
         <div><strong>Student:</strong> <span id="studentName">-</span></div>
         <div><strong>Model:</strong> <span id="modelName">-</span></div>
-        <div><strong>Uploaded:</strong> <span id="uploadDate">-</span></div>
+        <div><strong>Version:</strong> <span id="version">-</span></div>
+        <div><strong>Date:</strong> <span id="uploadDate">-</span></div>
+    </div>
+    
+    <div id="timeline">
+        <div id="timeline-content"></div>
     </div>
 
     <script type="module">
@@ -82,39 +155,89 @@
         scene.add(directionalLight);
 
         const loader = new GLTFLoader();
+        let modelLabels = [];
+        let timelineData = {};
+        let currentModel = null;
         
-        // Load models metadata
-        fetch('models.json')
+        // Load timeline metadata
+        fetch('timeline.json')
             .then(response => response.json())
-            .then(models => {
-                if (models.length > 0) {
-                    const model = models[0]; // Load first model for now
-                    
-                    // Update info overlay
-                    document.getElementById('studentName').textContent = model.name;
-                    document.getElementById('modelName').textContent = model.modelName;
-                    document.getElementById('uploadDate').textContent = new Date(model.uploadDate).toLocaleDateString();
-                    
-                    // Load the GLB file
-                    loadModel(model.modelPath);
-                } else {
-                    document.getElementById('loading').textContent = 'No models found';
+            .then(timeline => {
+                timelineData = timeline;
+                buildTimeline();
+                
+                // Load first available model
+                const firstStudent = Object.keys(timeline)[0];
+                if (firstStudent && timeline[firstStudent].length > 0) {
+                    const latestModel = timeline[firstStudent][timeline[firstStudent].length - 1];
+                    loadModelFromTimeline(firstStudent, latestModel);
                 }
             })
             .catch(error => {
-                console.error('Error loading models.json:', error);
-                // Fallback to default model
-                loadModel('model.glb');
+                console.error('Error loading timeline.json:', error);
+                document.getElementById('loading').textContent = 'No timeline data found';
             });
+            
+        function buildTimeline() {
+            const timelineContent = document.getElementById('timeline-content');
+            timelineContent.innerHTML = '';
+            
+            Object.keys(timelineData).forEach(studentName => {
+                const studentSection = document.createElement('div');
+                studentSection.className = 'student-section';
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'student-name';
+                nameDiv.textContent = studentName;
+                studentSection.appendChild(nameDiv);
+                
+                timelineData[studentName].forEach((model, index) => {
+                    const modelItem = document.createElement('div');
+                    modelItem.className = 'model-item';
+                    if (model.current) modelItem.classList.add('current');
+                    
+                    const date = new Date(model.date);
+                    modelItem.innerHTML = `v${model.version}<br>${date.toLocaleDateString()}<br>${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                    
+                    modelItem.addEventListener('click', () => {
+                        document.querySelectorAll('.model-item').forEach(item => item.classList.remove('active'));
+                        modelItem.classList.add('active');
+                        loadModelFromTimeline(studentName, model);
+                    });
+                    
+                    studentSection.appendChild(modelItem);
+                });
+                
+                timelineContent.appendChild(studentSection);
+            });
+        }
         
-        function loadModel(modelPath) {
+        function loadModelFromTimeline(studentName, modelData) {
+            // Clear previous model
+            if (currentModel) {
+                scene.remove(currentModel);
+                modelLabels.forEach(label => label.element.remove());
+                modelLabels = [];
+            }
+            
+            // Update info display
+            document.getElementById('studentName').textContent = studentName;
+            document.getElementById('modelName').textContent = 'model.glb';
+            document.getElementById('version').textContent = `v${modelData.version}${modelData.current ? ' (current)' : ''}`;
+            document.getElementById('uploadDate').textContent = new Date(modelData.date).toLocaleDateString();
+            
+            document.getElementById('loading').style.display = 'block';
+            loadModel(modelData.path, studentName);
+        }
+        
+        function loadModel(modelPath, studentName) {
             loader.load(
                 modelPath,
                 function (gltf) {
-                    const model = gltf.scene;
-                    scene.add(model);
+                    currentModel = gltf.scene;
+                    scene.add(currentModel);
                     
-                    const box = new THREE.Box3().setFromObject(model);
+                    const box = new THREE.Box3().setFromObject(currentModel);
                     const center = box.getCenter(new THREE.Vector3());
                     const size = box.getSize(new THREE.Vector3());
                     
@@ -127,6 +250,8 @@
                     camera.lookAt(center);
                     controls.target.copy(center);
                     
+                    createModelLabels(currentModel, box, studentName);
+                    
                     document.getElementById('loading').style.display = 'none';
                 },
                 function (progress) {
@@ -138,10 +263,42 @@
                 }
             );
         }
+        
+        function createModelLabels(model, boundingBox, studentName) {
+            const center = boundingBox.getCenter(new THREE.Vector3());
+            
+            const position = new THREE.Vector3(center.x, center.y + 2, center.z);
+            
+            const labelDiv = document.createElement('div');
+            labelDiv.className = 'label';
+            labelDiv.innerHTML = `${studentName} - ${document.getElementById('version').textContent}`;
+            
+            document.body.appendChild(labelDiv);
+            
+            modelLabels.push({
+                element: labelDiv,
+                position: position
+            });
+        }
+        
+        function updateLabels() {
+            modelLabels.forEach(label => {
+                const vector = label.position.clone();
+                vector.project(camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+                
+                label.element.style.left = x + 'px';
+                label.element.style.top = y + 'px';
+                label.element.style.display = 'block';
+            });
+        }
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            updateLabels();
             renderer.render(scene, camera);
         }
 
@@ -151,6 +308,7 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            updateLabels();
         });
     </script>
 </body>

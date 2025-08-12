@@ -30,8 +30,8 @@ jobs:
         with:
           python-version: '3.x'
           
-      - name: Generate models JSON
-        run: python generate_json.py
+      - name: Generate timeline JSON
+        run: python generate_models.py
         
       - name: Setup Pages
         uses: actions/configure-pages@v4
